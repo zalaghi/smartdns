@@ -1,0 +1,79 @@
+
+
+services:
+  doh:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: doh-app
+    image: local/doh-app:latest
+    restart: unless-stopped
+    environment:
+      - CONFIG_PATH=/config/config.json
+      - GIN_MODE=release
+    networks:
+      - dohnet
+    volumes:
+      - ./config:/config:ro
+    labels:
+      - "com.banacontrol.stack=doh"
+      - "com.centurylinklabs.watchtower.enable=true"
+    cap_add:
+      - NET_BIND_SERVICE
+    ports:
+      - "443:443"        # SNI proxy (raw TCP)
+    depends_on:
+      - nginx
+
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: doh-nginx
+    restart: unless-stopped
+    networks:
+      - dohnet
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./letsencrypt:/etc/letsencrypt:ro
+    ports:
+      - "8443:8443"      # internal HTTPS for DoH
+      - "80:80"          # for HTTP-01 certbot challenges (temporary during issuance)
+    labels:
+      - "com.banacontrol.stack=doh"
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  certbot:
+    image: certbot/certbot:latest
+    container_name: doh-certbot
+    networks:
+      - dohnet
+    volumes:
+      - ./letsencrypt:/etc/letsencrypt
+      - ./www:/var/www/certbot
+    entrypoint: ["/bin/sh","-c","sleep infinity"]
+    labels:
+      - "com.banacontrol.stack=doh"
+      - "com.centurylinklabs.watchtower.enable=true"
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: doh-watchtower
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_LABEL_ENABLE=true
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=true
+      - WATCHTOWER_SCHEDULE=0 0 4 * * *    # every day at 04:00
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - dohnet
+    labels:
+      - "com.banacontrol.stack=doh"
+      - "com.centurylinklabs.watchtower.enable=true"
+
+networks:
+  dohnet:
+    name: dohnet
+    driver: bridge
+    # IPv6 intentionally disabled (no 'enable_ipv6: true')

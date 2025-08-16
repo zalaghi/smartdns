@@ -1,0 +1,44 @@
+# ---- Go build outputs
+bin/
+out/
+dist/
+*.test
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+
+# ---- Docker / Compose extras
+docker-compose.override.yml
+.env
+
+# ---- Certificates & secrets (never commit)
+letsencrypt/
+www/
+config/config.json
+config/domain.txt
+config/email.txt
+config/secret.txt
+config/capture_ip.txt
+*.pem
+*.key
+*.crt
+
+# ---- Logs
+logs/
+*.log
+
+# ---- OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# ---- Bundles / archives
+*.zip
+*.tar.gz
+
+# ---- Coverage
+coverage/
+*.coverprofile

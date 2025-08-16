@@ -1,0 +1,101 @@
+{
+  "host": "dns.example.com",
+  "admin_email": "you@example.com",
+  "auth": {
+    "enabled": true,
+    "scheme": "Bearer",
+    "secret": "CHANGE_ME",
+    "allow_query_param": false,
+    "query_param": "key"
+  },
+  "ipv6": {
+    "disabled": true
+  },
+  "capture": {
+    "capture_all_domains": true,
+    "capture_ip": "203.0.113.10",
+    "ttl": 300
+  },
+  "overrides": {
+    "youtube": "203.0.113.10",
+    "google": "203.0.113.10"
+  },
+  "upstreams": [
+    {
+      "name": "cloudflare",
+      "url": "https://1.1.1.1/dns-query"
+    },
+    {
+      "name": "google",
+      "url": "https://dns.google/dns-query"
+    }
+  ],
+  "rate_limit": {
+    "rps": 5,
+    "burst": 20
+  },
+  "cache": {
+    "enabled": true,
+    "max_entries": 5000,
+    "min_ttl_seconds": 30,
+    "max_ttl_seconds": 300
+  },
+  "logging": {
+    "json": true
+  },
+  "upstream_mode": "dns53",
+  "dns53_upstreams": [
+    "1.1.1.1",
+    "8.8.8.8"
+  ],
+  "resolver": {
+    "mode": "doh",
+    "doh": [
+      {
+        "name": "cloudflare",
+        "url": "https://1.1.1.1/dns-query"
+      },
+      {
+        "name": "google",
+        "url": "https://dns.google/dns-query"
+      }
+    ],
+    "udp": {
+      "servers": [
+        "1.1.1.1:53",
+        "8.8.8.8:53"
+      ]
+    },
+    "dot": [
+      {
+        "name": "cloudflare",
+        "addr": "1.1.1.1:853",
+        "servername": "cloudflare-dns.com"
+      },
+      {
+        "name": "google",
+        "addr": "8.8.8.8:853",
+        "servername": "dns.google"
+      }
+    ]
+  },
+  "resolver_mode": "doh",
+  "udp": {
+    "servers": [
+      "1.1.1.1:53",
+      "8.8.8.8:53"
+    ]
+  },
+  "dot": [
+    {
+      "name": "cloudflare",
+      "addr": "1.1.1.1:853",
+      "servername": "cloudflare-dns.com"
+    },
+    {
+      "name": "google",
+      "addr": "8.8.8.8:853",
+      "servername": "dns.google"
+    }
+  ]
+}
