@@ -128,13 +128,13 @@ Your runtime config lives at `config/config.json`.
     "youtube": "203.0.113.10"
   },
 
-  // Upstream URLs (used when resolver_mode = "doh" and upstream_mode = "doh")
+  // Legacy DoH upstream list (used when resolver_mode = "doh")
   "upstreams": [
     { "name": "cloudflare", "url": "https://1.1.1.1/dns-query" },
     { "name": "google",     "url": "https://dns.google/dns-query" }
   ],
 
-  // Choose resolver mode (doh | udp | dot)
+  // NEW: choose upstream mode (doh | udp | dot)
   "resolver_mode": "doh",
 
   // UDP/53 upstream servers (used when resolver_mode = "udp")
@@ -172,7 +172,7 @@ Your runtime config lives at `config/config.json`.
 
 ### Resolver upstream mode (DoH / DoT / UDP)
 Pick the upstream transport used when your server forwards queries you don’t rewrite:
-- `resolver_mode = "doh"` (default): uses `upstream_mode` ("dns53" or "doh") and corresponding upstream lists
+- `resolver_mode = "doh"` (default): uses `upstreams[].url` (HTTPS, HTTP/2 keep‑alive)
 - `resolver_mode = "udp"`: uses `udp.servers` (e.g., `1.1.1.1:53`, `8.8.8.8:53`)
 - `resolver_mode = "dot"`: uses `dot[]` (TLS 1.2+, SNI enforced)
 
