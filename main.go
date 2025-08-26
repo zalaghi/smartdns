@@ -1,4 +1,3 @@
-
 package main
 
 import (
@@ -10,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-		"net"
+	"net"
 	"net/http"
 	"os"
 	"strconv"
@@ -27,41 +26,46 @@ import (
 // ====================== Config ======================
 
 type Config struct {
-	Host        string         `json:"host"`
-	UpstreamMode string        `json:"upstream_mode"`
-	Dns53Upstreams []string    `json:"dns53_upstreams"`
-	AdminEmail  string         `json:"admin_email"`
-	Auth        AuthConfig     `json:"auth"`
-	IPv6        IPv6Config     `json:"ipv6"`
-	Capture     CaptureConfig  `json:"capture"`
-	Overrides   map[string]string `json:"overrides"`
-	Upstreams   []Upstream     `json:"upstreams"`
-	RateLimit   RateLimit      `json:"rate_limit"`
-	Cache       CacheConfig    `json:"cache"`
-	Logging     LoggingConfig  `json:"logging"`
+	Host           string            `json:"host"`
+	UpstreamMode   string            `json:"upstream_mode"`
+	Dns53Upstreams []string          `json:"dns53_upstreams"`
+	AdminEmail     string            `json:"admin_email"`
+	Auth           AuthConfig        `json:"auth"`
+	IPv6           IPv6Config        `json:"ipv6"`
+	Capture        CaptureConfig     `json:"capture"`
+	Overrides      map[string]string `json:"overrides"`
+	Upstreams      []Upstream        `json:"upstreams"`
+	RateLimit      RateLimit         `json:"rate_limit"`
+	Cache          CacheConfig       `json:"cache"`
+	Logging        LoggingConfig     `json:"logging"`
 
-	ResolverMode string `json:"resolver_mode"` // "doh" (default), "udp", "dot"
-	UDP struct {
+	// ResolverMode selects how we resolve queries not answered from cache/overrides.
+	// "udp" -> use UDP/53 servers, "dot" -> DNS over TLS. Any other value
+	// falls back to the legacy DoH/DNS53 logic governed by UpstreamMode.
+	ResolverMode string `json:"resolver_mode"`
+	UDP          struct {
+		// Servers to query when ResolverMode = "udp"
 		Servers []string `json:"servers"` // e.g., ["1.1.1.1:53","8.8.8.8:53"]
 	} `json:"udp"`
+	// DoT upstreams used when ResolverMode = "dot"
 	DoT []struct {
-		Name string `json:"name"`
-		Addr string `json:"addr"`        // "1.1.1.1:853"
+		Name       string `json:"name"`
+		Addr       string `json:"addr"`       // "1.1.1.1:853"
 		ServerName string `json:"servername"` // "cloudflare-dns.com"
 	} `json:"dot"`
 }
 
 type AuthConfig struct {
-	Enabled          bool   `json:"enabled"`
-	Scheme           string `json:"scheme"` // e.g. "Bearer"
-	Secret           string `json:"secret"`
-	AllowQueryParam  bool   `json:"allow_query_param"`
-	QueryParam       string `json:"query_param"`
+	Enabled         bool   `json:"enabled"`
+	Scheme          string `json:"scheme"` // e.g. "Bearer"
+	Secret          string `json:"secret"`
+	AllowQueryParam bool   `json:"allow_query_param"`
+	QueryParam      string `json:"query_param"`
 }
 
 type DoTUpstream struct {
-	Name string `json:"name"`
-	Addr string `json:"addr"`
+	Name       string `json:"name"`
+	Addr       string `json:"addr"`
 	ServerName string `json:"servername"`
 }
 
@@ -80,17 +84,16 @@ type Upstream struct {
 	URL  string `json:"url"`
 }
 
-
 type RateLimit struct {
 	RPS   int `json:"rps"`
 	Burst int `json:"burst"`
 }
 
 type CacheConfig struct {
-	Enabled        bool  `json:"enabled"`
-	MaxEntries     int   `json:"max_entries"`
-	MinTTLSeconds  int64 `json:"min_ttl_seconds"`
-	MaxTTLSeconds  int64 `json:"max_ttl_seconds"`
+	Enabled       bool  `json:"enabled"`
+	MaxEntries    int   `json:"max_entries"`
+	MinTTLSeconds int64 `json:"min_ttl_seconds"`
+	MaxTTLSeconds int64 `json:"max_ttl_seconds"`
 }
 
 type LoggingConfig struct {
@@ -100,11 +103,11 @@ type LoggingConfig struct {
 // ====================== Globals ======================
 
 var (
-	cfg           Config
-	httpClient    *http.Client
-	rrCounter     uint64
-	cache         *dnsCache
-	limiter       *ipLimiter
+	cfg        Config
+	httpClient *http.Client
+	rrCounter  uint64
+	cache      *dnsCache
+	limiter    *ipLimiter
 )
 
 // ====================== Utilities ======================
@@ -126,7 +129,9 @@ func envOr(k, def string) string {
 func nowUnix() int64 { return time.Now().Unix() }
 
 func btoi(b bool) int {
-	if b { return 1 }
+	if b {
+		return 1
+	}
 	return 0
 }
 
@@ -152,9 +157,9 @@ func getClientIP(r *http.Request) string {
 // ====================== Simple LRU-ish Cache ======================
 
 type cacheEntry struct {
-	key   string
-	data  []byte
-	exp   int64
+	key  string
+	data []byte
+	exp  int64
 }
 
 type dnsCache struct {
@@ -177,19 +182,25 @@ func cacheKey(msg *dns.Msg) string {
 }
 
 func (c *dnsCache) get(k string) ([]byte, bool) {
-	if k == "" { return nil, false }
+	if k == "" {
+		return nil, false
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	e, ok := c.data[k]
 	if !ok || e.exp < nowUnix() {
-		if ok { delete(c.data, k) }
+		if ok {
+			delete(c.data, k)
+		}
 		return nil, false
 	}
 	return e.data, true
 }
 
 func (c *dnsCache) set(k string, data []byte, ttl int64) {
-	if k == "" || ttl <= 0 { return }
+	if k == "" || ttl <= 0 {
+		return
+	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	// evict if needed
@@ -217,7 +228,9 @@ func (tb *tokenBucket) allow() bool {
 	elapsed := now.Sub(tb.last).Seconds()
 	tb.last = now
 	tb.tokens += int(elapsed * float64(tb.rps))
-	if tb.tokens > tb.max { tb.tokens = tb.max }
+	if tb.tokens > tb.max {
+		tb.tokens = tb.max
+	}
 	if tb.tokens <= 0 {
 		return false
 	}
@@ -377,31 +390,46 @@ func dohHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Forward to upstream (DoH or DNS53)
+	// Resolve upstream depending on ResolverMode
 	var body []byte
 	var ferr error
-	if strings.ToLower(strings.TrimSpace(cfg.UpstreamMode)) == "dns53" {
-		body, ferr = forwardDNS53(r.Context(), payload)
-	} else {
-		up := pickUpstreamDoH()
-		upReq, err := http.NewRequestWithContext(r.Context(), "POST", up, bytes.NewReader(payload))
-		if err != nil {
-			http.Error(w, "upstream error", http.StatusBadGateway)
-			return
+	switch strings.ToLower(strings.TrimSpace(cfg.ResolverMode)) {
+	case "udp":
+		var resp *dns.Msg
+		resp, ferr = resolveViaUDP(req)
+		if ferr == nil {
+			body, ferr = resp.Pack()
 		}
-		upReq.Header.Set("Content-Type", "application/dns-message")
-		upReq.Header.Set("Accept", "application/dns-message")
-		resp, err := httpClient.Do(upReq)
-		if err != nil {
-			http.Error(w, "upstream unreachable", http.StatusBadGateway)
-			return
+	case "dot":
+		var resp *dns.Msg
+		resp, ferr = resolveViaDoT(req)
+		if ferr == nil {
+			body, ferr = resp.Pack()
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != 200 {
-			http.Error(w, fmt.Sprintf("upstream status %d", resp.StatusCode), http.StatusBadGateway)
-			return
+	default:
+		if strings.ToLower(strings.TrimSpace(cfg.UpstreamMode)) == "dns53" {
+			body, ferr = forwardDNS53(r.Context(), payload)
+		} else {
+			up := pickUpstreamDoH()
+			upReq, err := http.NewRequestWithContext(r.Context(), "POST", up, bytes.NewReader(payload))
+			if err != nil {
+				http.Error(w, "upstream error", http.StatusBadGateway)
+				return
+			}
+			upReq.Header.Set("Content-Type", "application/dns-message")
+			upReq.Header.Set("Accept", "application/dns-message")
+			resp, err := httpClient.Do(upReq)
+			if err != nil {
+				http.Error(w, "upstream unreachable", http.StatusBadGateway)
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				http.Error(w, fmt.Sprintf("upstream status %d", resp.StatusCode), http.StatusBadGateway)
+				return
+			}
+			body, _ = io.ReadAll(resp.Body)
 		}
-		body, _ = io.ReadAll(resp.Body)
 	}
 	if ferr != nil {
 		http.Error(w, "upstream unreachable", http.StatusBadGateway)
@@ -450,13 +478,19 @@ func extractMinTTL(m *dns.Msg) int64 {
 			}
 		}
 	}
-	if min == 0 { min = 60 }
+	if min == 0 {
+		min = 60
+	}
 	return min
 }
 
 func clampTTL(ttl, min, max int64) int64 {
-	if min > 0 && ttl < min { ttl = min }
-	if max > 0 && ttl > max { ttl = max }
+	if min > 0 && ttl < min {
+		ttl = min
+	}
+	if max > 0 && ttl > max {
+		ttl = max
+	}
 	return ttl
 }
 
@@ -590,32 +624,57 @@ func readClientHello(r net.Conn) (*clientHelloInfo, []byte, error) {
 
 	// Skip: msg len (3), version (2), random (32)
 	p := 1 + 3 + 2 + 32
-	if p+1 > len(body) { return nil, nil, errors.New("bad ch len") }
-	sessionLen := int(body[p]); p++
+	if p+1 > len(body) {
+		return nil, nil, errors.New("bad ch len")
+	}
+	sessionLen := int(body[p])
+	p++
 	p += sessionLen
-	if p+2 > len(body) { return nil, nil, errors.New("bad cipher len") }
-	cipherLen := int(body[p])<<8 | int(body[p+1]); p += 2 + cipherLen
-	if p+1 > len(body) { return nil, nil, errors.New("bad comp len") }
-	compLen := int(body[p]); p++
+	if p+2 > len(body) {
+		return nil, nil, errors.New("bad cipher len")
+	}
+	cipherLen := int(body[p])<<8 | int(body[p+1])
+	p += 2 + cipherLen
+	if p+1 > len(body) {
+		return nil, nil, errors.New("bad comp len")
+	}
+	compLen := int(body[p])
+	p++
 	p += compLen
-	if p+2 > len(body) { return nil, nil, errors.New("no extensions") }
-	extLen := int(body[p])<<8 | int(body[p+1]); p += 2
-	if p+extLen > len(body) { return nil, nil, errors.New("bad ext len") }
+	if p+2 > len(body) {
+		return nil, nil, errors.New("no extensions")
+	}
+	extLen := int(body[p])<<8 | int(body[p+1])
+	p += 2
+	if p+extLen > len(body) {
+		return nil, nil, errors.New("bad ext len")
+	}
 	end := p + extLen
 
 	var sni string
 	for p < end {
-		if p+4 > len(body) { break }
-		typ := int(body[p])<<8 | int(body[p+1]); p += 2
-		l := int(body[p])<<8 | int(body[p+1]); p += 2
-		if p+l > len(body) { break }
+		if p+4 > len(body) {
+			break
+		}
+		typ := int(body[p])<<8 | int(body[p+1])
+		p += 2
+		l := int(body[p])<<8 | int(body[p+1])
+		p += 2
+		if p+l > len(body) {
+			break
+		}
 		if typ == 0 { // server_name
 			// list len (2), name type (1), name len (2), name (n)
 			q := p
-			if q+5 > p+l { break }
-			_ = int(body[q])<<8 | int(body[q+1]); q += 2
-			_ = int(body[q]); q++
-			nameLen := int(body[q])<<8 | int(body[q+1]); q += 2
+			if q+5 > p+l {
+				break
+			}
+			_ = int(body[q])<<8 | int(body[q+1])
+			q += 2
+			_ = int(body[q])
+			q++
+			nameLen := int(body[q])<<8 | int(body[q+1])
+			q += 2
 			if q+nameLen <= p+l {
 				sni = string(body[q : q+nameLen])
 			}
@@ -642,12 +701,24 @@ func main() {
 	must(json.Unmarshal(b, &cfg))
 
 	// Set defaults
-	if cfg.Capture.TTL == 0 { cfg.Capture.TTL = 300 }
-	if strings.TrimSpace(cfg.UpstreamMode) == "" { cfg.UpstreamMode = "dns53" }
-	if strings.ToLower(cfg.UpstreamMode) == "dns53" && len(cfg.Dns53Upstreams) == 0 { cfg.Dns53Upstreams = []string{"1.1.1.1", "8.8.8.8"} }
-	if cfg.RateLimit.RPS <= 0 { cfg.RateLimit.RPS = 5 }
-	if cfg.RateLimit.Burst <= 0 { cfg.RateLimit.Burst = 20 }
-	if cfg.Auth.Scheme == "" { cfg.Auth.Scheme = "Bearer" }
+	if cfg.Capture.TTL == 0 {
+		cfg.Capture.TTL = 300
+	}
+	if strings.TrimSpace(cfg.UpstreamMode) == "" {
+		cfg.UpstreamMode = "dns53"
+	}
+	if strings.ToLower(cfg.UpstreamMode) == "dns53" && len(cfg.Dns53Upstreams) == 0 {
+		cfg.Dns53Upstreams = []string{"1.1.1.1", "8.8.8.8"}
+	}
+	if cfg.RateLimit.RPS <= 0 {
+		cfg.RateLimit.RPS = 5
+	}
+	if cfg.RateLimit.Burst <= 0 {
+		cfg.RateLimit.Burst = 20
+	}
+	if cfg.Auth.Scheme == "" {
+		cfg.Auth.Scheme = "Bearer"
+	}
 
 	// HTTP client for DoH upstreams
 	tr := &http.Transport{
@@ -685,7 +756,7 @@ func main() {
 		IdleTimeout:       30 * time.Second,
 	}
 
-go func() {
+	go func() {
 		log.Printf("DoH listening on :8080 (auth:%v, capture_all:%v, upstreams:%d)", cfg.Auth.Enabled, cfg.Capture.CaptureAll, len(cfg.Upstreams))
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			log.Fatal(err)
@@ -701,9 +772,9 @@ go func() {
 func resolveViaUDP(req *dns.Msg) (*dns.Msg, error) {
 	servers := cfg.UDP.Servers
 	if len(servers) == 0 {
-		servers = []string{"1.1.1.1:53","8.8.8.8:53"}
+		servers = []string{"1.1.1.1:53", "8.8.8.8:53"}
 	}
-	c := &dns.Client{Net: "udp", Timeout: 5*time.Second}
+	c := &dns.Client{Net: "udp", Timeout: 5 * time.Second}
 	for _, s := range servers {
 		in, _, err := c.Exchange(req, s)
 		if err == nil && in != nil {
@@ -716,13 +787,17 @@ func resolveViaUDP(req *dns.Msg) (*dns.Msg, error) {
 func resolveViaDoT(req *dns.Msg) (*dns.Msg, error) {
 	up := cfg.DoT
 	if len(up) == 0 {
-		up = []struct{ Name string `json:"name"`; Addr string `json:"addr"`; ServerName string `json:"servername"` }{
+		up = []struct {
+			Name       string `json:"name"`
+			Addr       string `json:"addr"`
+			ServerName string `json:"servername"`
+		}{
 			{Name: "cloudflare", Addr: "1.1.1.1:853", ServerName: "cloudflare-dns.com"},
 			{Name: "google", Addr: "8.8.8.8:853", ServerName: "dns.google"},
 		}
 	}
 	for _, u := range up {
-		c := &dns.Client{Net: "tcp-tls", Timeout: 7*time.Second, TLSConfig: &tls.Config{ServerName: u.ServerName, MinVersion: tls.VersionTLS12}}
+		c := &dns.Client{Net: "tcp-tls", Timeout: 7 * time.Second, TLSConfig: &tls.Config{ServerName: u.ServerName, MinVersion: tls.VersionTLS12}}
 		in, _, err := c.Exchange(req, u.Addr)
 		if err == nil && in != nil {
 			return in, nil
