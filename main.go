@@ -401,7 +401,16 @@ func dohHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("upstream status %d", resp.StatusCode), http.StatusBadGateway)
 			return
 		}
-		body, _ = io.ReadAll(resp.Body)
+        const maxUpstreamResponse = 65536
+        body, err = io.ReadAll(io.LimitReader(resp.Body, maxUpstreamResponse+1))
+        if err != nil {
+                http.Error(w, "upstream read error", http.StatusBadGateway)
+                return
+        }
+        if len(body) > maxUpstreamResponse {
+                http.Error(w, "upstream response too large", http.StatusBadGateway)
+                return
+        }
 	}
 	if ferr != nil {
 		http.Error(w, "upstream unreachable", http.StatusBadGateway)
