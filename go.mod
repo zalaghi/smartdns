@@ -1,5 +1,5 @@
 
-module github.com/banacontrol/doh
+module github.com/banacontrol/smartdns
 
 go 1.22.0
 
