@@ -293,6 +293,11 @@ func dohHandler(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "missing dns param", http.StatusBadRequest)
 			return
 		}
+		if len(param) > 2048 {
+			// Limit the query parameter to 2048 bytes to prevent abuse.
+			http.Error(w, "dns param too large", http.StatusBadRequest)
+			return
+		}
 		b, err := base64.RawURLEncoding.DecodeString(param)
 		if err != nil {
 			http.Error(w, "bad dns b64", http.StatusBadRequest)
