@@ -94,6 +94,7 @@ type CacheConfig struct {
 }
 
 type LoggingConfig struct {
+	// JSON enables structured JSON logging instead of the default text format.
 	JSON bool `json:"json"`
 }
 
@@ -128,6 +129,29 @@ func nowUnix() int64 { return time.Now().Unix() }
 func btoi(b bool) int {
 	if b { return 1 }
 	return 0
+}
+
+// jsonLogWriter writes log lines as JSON objects with time and msg fields.
+type jsonLogWriter struct {
+	mu  sync.Mutex
+	enc *json.Encoder
+}
+
+func newJSONLogWriter(w io.Writer) *jsonLogWriter {
+	return &jsonLogWriter{enc: json.NewEncoder(w)}
+}
+
+func (w *jsonLogWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	entry := map[string]string{
+		"time": time.Now().Format(time.RFC3339),
+		"msg":  strings.TrimSpace(string(p)),
+	}
+	if err := w.enc.Encode(entry); err != nil {
+		return 0, err
+	}
+	return len(p), nil
 }
 
 // getClientIP extracts the real client IP considering proxy headers set by nginx.
@@ -648,6 +672,11 @@ func main() {
 	if cfg.RateLimit.RPS <= 0 { cfg.RateLimit.RPS = 5 }
 	if cfg.RateLimit.Burst <= 0 { cfg.RateLimit.Burst = 20 }
 	if cfg.Auth.Scheme == "" { cfg.Auth.Scheme = "Bearer" }
+
+	if cfg.Logging.JSON {
+		log.SetFlags(0)
+		log.SetOutput(newJSONLogWriter(os.Stderr))
+	}
 
 	// HTTP client for DoH upstreams
 	tr := &http.Transport{
